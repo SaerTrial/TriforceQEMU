@@ -3345,3 +3345,54 @@ void tcg_gen_lookup_and_goto_ptr(void)
     tcg_gen_op1i(INDEX_op_goto_ptr, tcgv_ptr_arg(ptr));
     tcg_temp_free_ptr(ptr);
 }
+
+
+extern unsigned long aflPanicAddr;
+extern unsigned long aflDmesgAddr;
+extern unsigned long aflIgnoreAddr;
+
+#include "qemu/log.h"
+
+void gen_aflBBlock(ArchHelper func, CPUState* cpu, uint64_t pc){
+
+    if(aflPanicAddr != (unsigned long)-1 && pc == aflPanicAddr){
+        gen_helper_aflInterceptPanic();
+    }
+    
+    if(aflDmesgAddr != (unsigned long)-1 && pc == aflDmesgAddr){
+        TCGv_ptr tenv = tcg_constant_ptr(cpu_env(cpu));
+        gen_helper_aflInterceptLog(tenv);
+        tcg_temp_free_ptr(tenv);
+    }
+
+    if(aflIgnoreAddr != (unsigned long)-1 && pc == aflIgnoreAddr){
+        gen_helper_aflIgnore();
+    }
+
+
+    static TCGHelperInfo info; 
+
+    TCGv_ptr tcg_cpu = tcg_constant_ptr(cpu);
+    TCGv_i32 ret = tcg_temp_new_i32();
+    TCGLabel* no_patch =  gen_new_label();
+
+
+    // TCGTemp* args[] = {
+    //     tcgv_ptr_temp(tcg_cpu)
+    // };
+
+    info.flags = TCG_CALL_NO_RWG;
+    info.func = func;
+    // uint32_t (*)(ptr)
+    info.typemask = dh_typemask(i32, 0) | dh_typemask(ptr, 1);
+    // tcg_gen_callN(func, &info, tcgv_i32_temp(ret), (TCGTemp**)args);
+    tcg_gen_call1(func, &info, tcgv_i32_temp(ret), tcgv_ptr_temp(tcg_cpu));
+    tcg_gen_brcondi_i32(TCG_COND_EQ, ret, 0, no_patch);
+    tcg_temp_free_ptr(tcg_cpu);
+    tcg_temp_free_i32(ret);
+    tcg_gen_lookup_and_goto_ptr();
+
+    // no patch path
+    gen_set_label(no_patch);
+
+}

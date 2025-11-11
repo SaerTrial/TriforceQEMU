@@ -812,6 +812,19 @@ void tcg_register_thread(void)
 }
 #endif /* !CONFIG_USER_ONLY */
 
+void tcg_unregister_thread(void)
+{
+    TCGContext *s = tcg_ctx;
+    unsigned int n;
+
+    /* Unclaim an entry in tcg_ctxs */
+    n = qatomic_fetch_dec(&tcg_cur_ctxs);
+    g_assert(n > 0);
+    qatomic_store_release(&tcg_ctxs[n - 1], 0);
+
+    g_free(s);
+}
+
 /* pool based memory allocation */
 void *tcg_malloc_internal(TCGContext *s, int size)
 {

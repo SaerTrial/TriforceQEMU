@@ -6977,9 +6977,19 @@ static bool trans_SVC(DisasContext *s, arg_SVC *a)
             uint32_t syndrome = syn_aa32_svc(a->imm, s->thumb);
             gen_exception_insn_el(s, 0, EXCP_UDEF, syndrome, 2);
         } else {
-            gen_update_pc(s, curr_insn_len(s));
-            s->svc_imm = a->imm;
-            s->base.is_jmp = DISAS_SWI;
+            target_ulong svc_imm = extract32(s->insn, 0, 24);
+            if(svc_imm == 0x4c4641) {
+                TCGv_i32 tmp = load_reg(s, 0);
+                TCGv_i32 tmp2 = load_reg(s, 1);
+                TCGv_i32 tmp3 = load_reg(s, 2);
+                gen_helper_aflCall32(tmp, tcg_env, tmp, tmp2, tmp3);
+                store_reg(s, 0, tmp);
+                // gen_aflCall(s);
+            } else {
+                gen_update_pc(s, curr_insn_len(s));
+                s->svc_imm = a->imm;
+                s->base.is_jmp = DISAS_SWI;
+            }
         }
     }
     return true;
@@ -8077,12 +8087,68 @@ static void arm_tr_tb_stop(DisasContextBase *dcbase, CPUState *cpu)
     }
 }
 
+
+#include "qemu/main-loop.h"
+
+void armv7m_nvic_set_pending(NVICState *s, int irq, bool secure);
+extern GHashTable *patched_func_htable;
+static uint32_t arm_helper_func(CPUState *cpu){
+    static uint32_t cnt = 0;
+    CPUARMState *env = cpu_env(cpu);
+    void* element;
+
+    if (env->regs[15] == 0x8002220)
+        qemu_log_mask(LOG_AFL,
+                      "%s: bb[0x%x] is running ...\n", __func__, env->regs[15]);
+
+    qemu_log_mask(LOG_GUEST_ERROR,
+                      "%s: bb[0x%x] is running ...\n", __func__, env->regs[15]);
+
+    cnt++;
+
+    // TODO: implement a python replacement for a patched function, returning a desired value?
+    if ( (element = g_hash_table_lookup(patched_func_htable, (gpointer)((uint64_t)env->regs[15])))){
+    //if (env->regs[15] == 0x08002668 || env->regs[15] == 0x8000660 || env->regs[15] == 0x8001188){
+        // qemu_log_mask(LOG_GUEST_ERROR,
+        //               "%s: patching %s at 0x%x \n", __func__, element == NULL? "unknown": (const char*)element, env->regs[15]);
+     
+        // if (env->regs[15] == 0x8000660 || env->regs[15] == 0x8001188)
+        //     env->regs[0] = 0;
+
+        if (env->thumb)
+            env->regs[15] = env->regs[14] & ~1;
+        else
+            env->regs[15] = env->regs[14];
+        
+        return 1;
+    }
+
+    if (cnt % 500 == 0) {
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "%s: fire a systick interrupt, cnt: 0x%x\n", __func__, cnt);
+
+    // cpu->neg.can_do_io = false;
+    // bql_lock();
+    // armv7m_nvic_set_pending(env->nvic, ARMV7M_EXCP_SYSTICK, false);
+    // bql_unlock();
+    // cpu->neg.can_do_io = true;
+
+        
+    }
+
+    // TODO: fire an enabled IRQ in a whatever way, e.g., round-robin....
+
+
+    return 0;
+}
+
 static const TranslatorOps arm_translator_ops = {
     .init_disas_context = arm_tr_init_disas_context,
     .tb_start           = arm_tr_tb_start,
     .insn_start         = arm_tr_insn_start,
     .translate_insn     = arm_tr_translate_insn,
     .tb_stop            = arm_tr_tb_stop,
+    .arch_helper        = arm_helper_func,
 };
 
 static const TranslatorOps thumb_translator_ops = {
@@ -8091,6 +8157,7 @@ static const TranslatorOps thumb_translator_ops = {
     .insn_start         = arm_tr_insn_start,
     .translate_insn     = thumb_tr_translate_insn,
     .tb_stop            = arm_tr_tb_stop,
+    .arch_helper        = arm_helper_func,
 };
 
 /* generate intermediate code for basic block 'tb'.  */

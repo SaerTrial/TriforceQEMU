@@ -46,6 +46,7 @@
 #include "hw/boards.h"
 #include "hw/hw.h"
 #include "trace.h"
+#include "patches/afl.h"
 
 #ifdef CONFIG_LINUX
 
@@ -662,15 +663,63 @@ const AccelOpsClass *cpus_get_accel(void)
     return cpus_accel;
 }
 
+
+static void
+gotPipeNotification(void *ctx)
+{
+    CPUArchState *env;
+    char buf[4];
+
+    /* cpu thread asked us to run AFL forkserver */
+    if(read(afl_qemuloop_pipe[0], buf, 4) != 4) {
+        printf("error reading afl/qemu pipe!\n");
+        exit(1);
+    }
+
+    printf("start up afl forkserver!\n");
+    qemu_log("afl setup ...\n");
+    afl_setup();
+    qemu_log("afl setup finished.\n");
+    env = NULL; //XXX for now.. if we want to share JIT to the parent we will need to pass in a real env here
+    //env = restart_cpu->env_ptr;
+    afl_forkserver(env);
+
+    /* we're now in the child! */
+    current_cpu = restart_cpu;
+    if(aflEnableTicks)  {
+        qemu_log("re-enable ticks");
+        cpu_enable_ticks();
+    };
+    // cpu_enable_ticks();
+    // restart_cpu->as = NULL;
+
+    qemu_init_vcpu(restart_cpu);
+    // resume_all_vcpus();
+    cpu_resume(restart_cpu);
+    // restart_cpu->stopped = false;
+    /* continue running iothread in child process... */
+}
+
 void qemu_init_vcpu(CPUState *cpu)
 {
+    static int afl_first_vcpu = 1;
+    if (afl_first_vcpu) {
+        afl_first_vcpu = 0;
+        if(pipe(afl_qemuloop_pipe) == -1) {
+            perror("qemuloop pipe");
+            exit(1);
+        }
+        qemu_set_fd_handler(afl_qemuloop_pipe[0], gotPipeNotification, NULL, NULL);
+    }
+
     MachineState *ms = MACHINE(qdev_get_machine());
 
     cpu->nr_cores = machine_topo_get_cores_per_socket(ms);
     cpu->nr_threads =  ms->smp.threads;
     cpu->stopped = true;
-    cpu->random_seed = qemu_guest_random_seed_thread_part1();
-
+    // cpu->random_seed = qemu_guest_random_seed_thread_part1();
+    cpu->random_seed = 0; 
+    
     if (!cpu->as) {
         /* If the target cpu hasn't set up any address spaces itself,
          * give it the default one.

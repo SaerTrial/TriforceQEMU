@@ -34,6 +34,7 @@
 #define HELPER_H  "accel/tcg/tcg-runtime.h"
 #include "exec/helper-info.c.inc"
 #undef  HELPER_H
+#include "qemu/log.h"
 
 /* 32-bit helpers */
 
@@ -152,3 +153,6 @@ void HELPER(exit_atomic)(CPUArchState *env)
 {
     cpu_loop_exit_atomic(env_cpu(env), GETPC());
 }
+
+#include "patches/aflCall_helper.h"
+

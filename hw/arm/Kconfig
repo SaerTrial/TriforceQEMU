@@ -57,6 +57,11 @@ config DIGIC
     select PTIMER
     select PFLASH_CFI02
 
+config REHOST_FUZZING
+    bool
+    default y
+    depends on TCG && ARM 
+
 config EXYNOS4
     bool
     default y

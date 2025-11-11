@@ -113,6 +113,7 @@ bool translator_use_goto_tb(DisasContextBase *db, vaddr dest)
     return ((db->pc_first ^ dest) & TARGET_PAGE_MASK) == 0;
 }
 
+
 void translator_loop(CPUState *cpu, TranslationBlock *tb, int *max_insns,
                      vaddr pc, void *host_pc, const TranslatorOps *ops,
                      DisasContextBase *db)
@@ -139,6 +140,9 @@ void translator_loop(CPUState *cpu, TranslationBlock *tb, int *max_insns,
 
     ops->init_disas_context(db, cpu);
     tcg_debug_assert(db->is_jmp == DISAS_NEXT);  /* no early exit */
+
+    /* AFL-related */
+    gen_aflBBlock(ops->arch_helper, cpu, db->pc_first);
 
     /* Start translating.  */
     icount_start_insn = gen_tb_start(db, cflags);

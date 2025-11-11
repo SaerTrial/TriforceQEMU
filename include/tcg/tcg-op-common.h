@@ -12,6 +12,10 @@
 #include "exec/helper-proto-common.h"
 #include "exec/helper-gen-common.h"
 
+/* AFL-related */
+typedef uint32_t (*ArchHelper)(CPUState *);
+void gen_aflBBlock(ArchHelper func, CPUState* cpu, uint64_t pc);
+
 TCGv_i32 tcg_constant_i32(int32_t val);
 TCGv_i64 tcg_constant_i64(int64_t val);
 TCGv_vec tcg_constant_vec(TCGType type, unsigned vece, int64_t val);

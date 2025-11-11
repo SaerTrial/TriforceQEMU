@@ -41,6 +41,7 @@
 #include "tb-context.h"
 #include "internal-common.h"
 #include "internal-target.h"
+#include "patches/afl-qemu-cpu-inl.h"
 
 /* -icount align implementation. */
 
@@ -443,12 +444,16 @@ const void *HELPER(lookup_tb_ptr)(CPUArchState *env)
  * TCG is not considered a security-sensitive part of QEMU so this does not
  * affect the impact of CFI in environment with high security requirements
  */
+static uint32_t bb_cnt = 0;
+void interrupt_firing(void);
+
 static inline TranslationBlock * QEMU_DISABLE_CFI
 cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
 {
     uintptr_t ret;
     TranslationBlock *last_tb;
     const void *tb_ptr = itb->tc.ptr;
+    vaddr pc = log_pc(cpu, itb);
 
     if (qemu_loglevel_mask(CPU_LOG_TB_CPU | CPU_LOG_EXEC)) {
         log_cpu_exec(log_pc(cpu, itb), cpu, itb);
@@ -487,12 +492,27 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
             cc->set_pc(cpu, last_tb->pc);
         }
         if (qemu_loglevel_mask(CPU_LOG_EXEC)) {
-            vaddr pc = log_pc(cpu, last_tb);
+            pc = log_pc(cpu, last_tb);
             if (qemu_log_in_addr_range(pc)) {
                 qemu_log("Stopped execution of TB chain before %p [%016"
                          VADDR_PRIx "] %s\n",
                          last_tb->tc.ptr, pc, lookup_symbol(pc));
             }
+        }
+    }else{
+        CPUArchState *env = cpu_env(cpu);
+        AFL_QEMU_CPU_SNIPPET2(env, pc);
+        bb_cnt++;
+        if (bb_cnt % 200 == 0){
+            qemu_log_mask(LOG_AFL,
+                       "%s: pre pending systick, pc: 0x%lx\n", __func__, pc);
+            cpu->neg.can_do_io = false;
+            bql_lock();
+            interrupt_firing();
+            bql_unlock();
+            cpu->neg.can_do_io = true;
+            qemu_log_mask(LOG_AFL,
+                       "%s: post systick pending, pc: 0x%lx\n", __func__, pc);
         }
     }
 
@@ -505,6 +525,9 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
         cpu->exception_index = EXCP_DEBUG;
         cpu_loop_exit(cpu);
     }
+
+    if(afl_wants_cpu_to_stop)
+        cpu->exit_request = 1;
 
     return last_tb;
 }
@@ -598,6 +621,8 @@ void cpu_exec_step_atomic(CPUState *cpu)
         if (tb == NULL) {
             mmap_lock();
             tb = tb_gen_code(cpu, pc, cs_base, flags, cflags);
+            // notify parent which tb needs to be cached
+            AFL_QEMU_CPU_SNIPPET1;
             mmap_unlock();
         }
 
@@ -991,6 +1016,7 @@ cpu_exec_loop(CPUState *cpu, SyncClocks *sc)
 
                 mmap_lock();
                 tb = tb_gen_code(cpu, pc, cs_base, flags, cflags);
+                AFL_QEMU_CPU_SNIPPET1;
                 mmap_unlock();
 
                 /*
@@ -1014,11 +1040,15 @@ cpu_exec_loop(CPUState *cpu, SyncClocks *sc)
                 last_tb = NULL;
             }
 #endif
+/*
+ * chaining complicates AFL's instrumentation so we disable it
+*/
+#ifdef NOPE_NOT_NEVER
             /* See if we can patch the calling TB. */
             if (last_tb) {
                 tb_add_jump(last_tb, tb_exit, tb);
             }
-
+#endif
             cpu_loop_exec_tb(cpu, tb, pc, &last_tb, &tb_exit);
 
             /* Try to align the host and virtual clocks

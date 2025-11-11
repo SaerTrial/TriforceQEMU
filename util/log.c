@@ -503,6 +503,8 @@ const QEMULogItem qemu_log_items[] = {
       "open a separate log file per thread; filename must contain '%d'" },
     { CPU_LOG_TB_VPU, "vpu",
       "include VPU registers in the 'cpu' logging" },
+    {LOG_AFL, "afl_fuzzing_log", 
+       "logs for fuzz testing"},
     { 0, NULL, NULL },
 };
 

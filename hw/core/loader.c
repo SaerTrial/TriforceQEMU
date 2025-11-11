@@ -298,6 +298,13 @@ static void *load_at(int fd, off_t offset, size_t size)
 #undef ELF_CLASS
 #endif
 
+
+// FIXME: assume target_ulong uint32_t
+extern uint32_t afl_entry_point, /* ELF entry point (_start) */
+          afl_start_code,  /* .text start pointer      */
+          afl_end_code;    /* .text end pointer        */
+         
+
 #define ELF_CLASS   ELFCLASS32
 #include "elf.h"
 
