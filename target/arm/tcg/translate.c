@@ -8089,31 +8089,39 @@ static void arm_tr_tb_stop(DisasContextBase *dcbase, CPUState *cpu)
 
 
 #include "qemu/main-loop.h"
+#include "function_hooks.h"
+
 
 void armv7m_nvic_set_pending(NVICState *s, int irq, bool secure);
 extern GHashTable *patched_func_htable;
+extern GHashTable *exit_at_htable;
+extern uint32_t bb_cnt;
 static uint32_t arm_helper_func(CPUState *cpu){
     static uint32_t cnt = 0;
     CPUARMState *env = cpu_env(cpu);
-    void* element;
-
-    if (env->regs[15] == 0x8002220)
-        qemu_log_mask(LOG_AFL,
-                      "%s: bb[0x%x] is running ...\n", __func__, env->regs[15]);
-
-    qemu_log_mask(LOG_GUEST_ERROR,
-                      "%s: bb[0x%x] is running ...\n", __func__, env->regs[15]);
+    void* element = NULL;
+    static bool is_hook_init = false;
+    func_hook_t func_hook_ptr;
 
     cnt++;
+    qemu_log_mask(LOG_AFL, "%s: running at 0x%x bb_cnt:0x%x...\n", __func__, env->regs[15], bb_cnt); 
 
-    // TODO: implement a python replacement for a patched function, returning a desired value?
+    if ( (element = g_hash_table_lookup(exit_at_htable, (gpointer)((uint64_t)env->regs[15])))){
+        qemu_log_mask(LOG_AFL, "%s: exiting at 0x%x (%s) ... \n", __func__, env->regs[15], element? (const char*) element  : "unknown"); 
+        _exit(0);
+    }
+
     if ( (element = g_hash_table_lookup(patched_func_htable, (gpointer)((uint64_t)env->regs[15])))){
-    //if (env->regs[15] == 0x08002668 || env->regs[15] == 0x8000660 || env->regs[15] == 0x8001188){
-        // qemu_log_mask(LOG_GUEST_ERROR,
-        //               "%s: patching %s at 0x%x \n", __func__, element == NULL? "unknown": (const char*)element, env->regs[15]);
-     
-        // if (env->regs[15] == 0x8000660 || env->regs[15] == 0x8001188)
-        //     env->regs[0] = 0;
+
+        if (!is_hook_init) {
+            hook_init();
+            is_hook_init = true;
+        }
+
+        if (( func_hook_ptr = g_hash_table_lookup(func_ptr_htable, element))) {
+            func_hook_ptr(env);
+        }
+
 
         if (env->thumb)
             env->regs[15] = env->regs[14] & ~1;
@@ -8121,19 +8129,6 @@ static uint32_t arm_helper_func(CPUState *cpu){
             env->regs[15] = env->regs[14];
         
         return 1;
-    }
-
-    if (cnt % 500 == 0) {
-        qemu_log_mask(LOG_GUEST_ERROR,
-                      "%s: fire a systick interrupt, cnt: 0x%x\n", __func__, cnt);
-
-    // cpu->neg.can_do_io = false;
-    // bql_lock();
-    // armv7m_nvic_set_pending(env->nvic, ARMV7M_EXCP_SYSTICK, false);
-    // bql_unlock();
-    // cpu->neg.can_do_io = true;
-
-        
     }
 
     // TODO: fire an enabled IRQ in a whatever way, e.g., round-robin....

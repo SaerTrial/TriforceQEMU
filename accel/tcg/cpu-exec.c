@@ -444,7 +444,7 @@ const void *HELPER(lookup_tb_ptr)(CPUArchState *env)
  * TCG is not considered a security-sensitive part of QEMU so this does not
  * affect the impact of CFI in environment with high security requirements
  */
-static uint32_t bb_cnt = 0;
+uint32_t bb_cnt = 0;
 void interrupt_firing(void);
 
 static inline TranslationBlock * QEMU_DISABLE_CFI

@@ -52,17 +52,13 @@ bool getFuzz(uint8_t *buf, uint32_t size) {
     }
 
     if(size && fuzz_cursor + size <= fuzz_size) {
-        #ifdef DEBUG
-        qemu_log_mask(LOG_GUEST_ERROR, "[NATIVE FUZZ] Returning %d fuzz bytes\n", size); 
-        #endif
+        qemu_log_mask(LOG_AFL, "[NATIVE FUZZ] Returning %d fuzz bytes\n", size); 
         memcpy(buf, &fuzz[fuzz_cursor], size);
         fuzz_cursor += size;
         return true;
     }
     else {
-        #ifdef DEBUG
-        qemu_log_mask(LOG_GUEST_ERROR, "[NATIVE FUZZ] Running out of inputs \n"); 
-        #endif
+        qemu_log_mask(LOG_AFL, "[NATIVE FUZZ] Running out of inputs \n"); 
         free(fuzz);
         doneWork(0);
     }
@@ -105,7 +101,6 @@ target_ulong getWork(CPUArchState *env, target_ulong ptr, target_ulong sz)
     target_ulong retsz;
     FILE *fp;
     unsigned char ch;
-    qemu_log_mask(LOG_GUEST_ERROR, "get_work:\n");
     //printf("pid %d: getWork %lx %lx\n", getpid(), ptr, sz);fflush(stdout);
     assert(aflStart == 0);
     fp = fopen(aflFile, "rb");
@@ -117,12 +112,10 @@ target_ulong getWork(CPUArchState *env, target_ulong ptr, target_ulong sz)
     while(retsz < sz) {
         if(fread(&ch, 1, 1, fp) == 0)
             break;
-        qemu_log_mask(LOG_GUEST_ERROR, "%c", ch);
         cpu_stb_data(env, ptr, ch);
         retsz ++;
         ptr ++;
     }
-    qemu_log_mask(LOG_GUEST_ERROR, "\n");
     fclose(fp);
     return retsz;
 }
@@ -165,7 +158,7 @@ uint32_t helper_aflCall32(CPUArchState *env, uint32_t code, uint32_t a0, uint32_
 }
 
 uint64_t helper_aflCall(CPUArchState *env, uint64_t code, uint64_t a0, uint64_t a1) {
-    qemu_log_mask(LOG_GUEST_ERROR, "helper_aflCall(%p, %ld, %ld, %ld)\n", env, code, a0, a1);
+    qemu_log_mask(LOG_AFL, "helper_aflCall(%p, %ld, %ld, %ld)\n", env, code, a0, a1);
     switch(code) {
     case 1: return startForkserver(env, a0);
     case 2: return getWork(env, a0, a1);
@@ -225,17 +218,8 @@ void helper_aflInterceptPanic(void)
 {
     if(!aflStart)
         return;
-    qemu_log_mask(LOG_GUEST_ERROR,
+    qemu_log_mask(LOG_AFL,
                       "%s\n", __func__);
     _exit(32);
-}
-
-void helper_aflIgnore(void)
-{
-    if(!aflStart)
-        return;
-    // qemu_log_mask(LOG_GUEST_ERROR,
-    //                   "%s\n", __func__);
-    doneWork(0);
 }
 

@@ -3,7 +3,6 @@
 extern const char *aflFile;
 extern unsigned long aflPanicAddr;
 extern unsigned long aflDmesgAddr;
-extern unsigned long aflIgnoreAddr;
 
 extern const char *aflConf;
 extern uint32_t aflEnabled;

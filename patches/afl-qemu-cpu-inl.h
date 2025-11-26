@@ -94,7 +94,6 @@ const char *aflConf = NULL;
 const char *aflFile = "/tmp/work";
 unsigned long aflPanicAddr = (unsigned long)-1;
 unsigned long aflDmesgAddr = (unsigned long)-1;
-unsigned long aflIgnoreAddr = (unsigned long)-1;
 /* Set in the child process in forkserver mode: */
 
 unsigned char afl_fork_child = 0;

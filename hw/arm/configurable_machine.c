@@ -24,6 +24,7 @@
 
 extern const char *replayConf;
 GHashTable *patched_func_htable = NULL;
+GHashTable *exit_at_htable = NULL;
 
 static QDict * load_configuration(const char * filename)
 {
@@ -88,7 +89,7 @@ static void load_ram(QDict * ram_dict) {
                                 ram_size, &err);
         memory_region_add_subregion(system_memory, ram_addr, ram);
 
-        qemu_log_mask(LOG_GUEST_ERROR, "name: %s ram: 0x%x size: 0x%x\n", 
+        qemu_log_mask(LOG_AFL, "name: %s ram: 0x%x size: 0x%x\n", 
                 qstring_get_str(qobject_to(QString, qdict_get(ram_dict, "name"))), 
                 ram_addr, 
                 ram_size);
@@ -133,7 +134,7 @@ static void load_flash(QDict * flash_dict) {
                 memory_region_add_subregion(system_memory, alias_addr, flash_alias);
         }
 
-        qemu_log_mask(LOG_GUEST_ERROR, "%s: addr: 0x%x size: 0x%x \n", __func__, flash_addr, flash_size);  
+        qemu_log_mask(LOG_AFL, "%s: addr: 0x%x size: 0x%x \n", __func__, flash_addr, flash_size);  
 }
 
 static void configure_mmio(QDict * mmio)
@@ -148,7 +149,7 @@ static void configure_mmio(QDict * mmio)
                 NULL,
                 0);
         
-        qemu_log_mask(LOG_GUEST_ERROR, "%s: mmio_start: 0x%x mmio_end: 0x%x\n", __func__, mmio_start, mmio_end);  
+        qemu_log_mask(LOG_AFL, "%s: mmio_start: 0x%x mmio_end: 0x%x\n", __func__, mmio_start, mmio_end);  
      
 }
 
@@ -169,32 +170,63 @@ static void create_patch(QDict * patch_entry){
     }
 }
 
+static void create_exit_at(QDict * exit_at_entry) {
+        if (!exit_at_htable) exit_at_htable = g_hash_table_new(NULL, NULL);
+        
+        /*      
+         "exit_at": [
+         {"addr":"0x08000b20", "name":"Error_Handler"},
+         {"addr":"0x080021c8", "name":"HardFault_Handler"}]
+        */
+
+        uint32_t addr = strtol(
+                        qstring_get_str(qobject_to(QString, qdict_get(exit_at_entry, "addr"))),
+                        NULL,
+                        0);
+        
+        void* element = NULL;
+        if(! (element = g_hash_table_lookup(exit_at_htable, (gpointer)((uint64_t)addr)))) {
+                if (qdict_haskey(exit_at_entry, "name"))
+                        element = (void*)qstring_get_str(qobject_to(QString, qdict_get(exit_at_entry, "name")));
+                g_hash_table_insert(exit_at_htable, (gpointer)((uint64_t)addr), (gpointer)element);
+        }
+
+}
+
 static void print_configuration(void){
     /* patch functions */
     GHashTableIter iter;
     uint32_t addr_iter;
-    const char* func_name;
+    const char* func_name = NULL;
     g_hash_table_iter_init(&iter, patched_func_htable);
     uint32_t cnt = 0;
 
-    qemu_log_mask(LOG_GUEST_ERROR,
+    qemu_log_mask(LOG_AFL,
         "%s: --------------------------patch function----------------------------\n", __func__);
 
     while (g_hash_table_iter_next(&iter, (gpointer)&addr_iter, (gpointer)&func_name)) {
-        qemu_log_mask(LOG_GUEST_ERROR,
+        qemu_log_mask(LOG_AFL,
         "%s: [%d] addr: 0x%x patched_function: %s \n", __func__, cnt, addr_iter, func_name);
         cnt++;
     } 
 
     /* afl conf */
     if (aflEnabled) {
-    qemu_log_mask(LOG_GUEST_ERROR,
+    qemu_log_mask(LOG_AFL,
         "%s: --------------------------afl configuration----------------------------\n", __func__);
-    qemu_log_mask(LOG_GUEST_ERROR,
-        "%s: aflPanicAddr: 0x%lx aflDmesgAddr: 0x%lx aflIgnoreAddr: 0x%lx\n", __func__, aflPanicAddr, aflDmesgAddr, aflIgnoreAddr);
+    qemu_log_mask(LOG_AFL,
+        "%s: aflPanicAddr: 0x%lx aflDmesgAddr: 0x%lx \n", __func__, aflPanicAddr, aflDmesgAddr);
     }
 
-
+    cnt = 0;
+    qemu_log_mask(LOG_AFL,
+        "%s: --------------------------exit_at function----------------------------\n", __func__);
+        g_hash_table_iter_init(&iter, exit_at_htable);
+    while (g_hash_table_iter_next(&iter, (gpointer)&addr_iter, (gpointer)&func_name)) {
+        qemu_log_mask(LOG_AFL,
+        "%s: [%d] exit_at addr: 0x%x (func_name): %s \n", __func__, cnt, addr_iter, func_name? func_name : "unknown");
+        cnt++;
+    } 
 
 }
 
@@ -221,11 +253,6 @@ static void machine_init(MachineState *machine)
             assert( aflDmesgAddr != (unsigned long)-1);   
         }
 
-        
-        if (qdict_haskey(conf, "aflIgnoreAddr")) {
-            aflIgnoreAddr = strtol(qdict_get_str(conf, "aflIgnoreAddr"), NULL, 0);
-            assert( aflIgnoreAddr != (unsigned long)-1);   
-        }
 
         const QDictEntry * entry = qdict_first(conf);
         while (entry) {
@@ -244,6 +271,12 @@ static void machine_init(MachineState *machine)
                         QListEntry *patch;
                         QLIST_FOREACH_ENTRY(patches, patch) {
                                 create_patch(qobject_to(QDict, qlist_entry_obj(patch)));
+                        }
+                }else if (!strcmp(entry->key, "exit_at")) {
+                        QList * exit_list = qobject_to(QList, entry->value);
+                        QListEntry *exit_entry;
+                        QLIST_FOREACH_ENTRY(exit_list, exit_entry) {
+                                create_exit_at(qobject_to(QDict, qlist_entry_obj(exit_entry)));
                         }
                 }
 

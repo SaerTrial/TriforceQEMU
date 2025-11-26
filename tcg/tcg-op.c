@@ -3349,7 +3349,6 @@ void tcg_gen_lookup_and_goto_ptr(void)
 
 extern unsigned long aflPanicAddr;
 extern unsigned long aflDmesgAddr;
-extern unsigned long aflIgnoreAddr;
 
 #include "qemu/log.h"
 
@@ -3364,11 +3363,6 @@ void gen_aflBBlock(ArchHelper func, CPUState* cpu, uint64_t pc){
         gen_helper_aflInterceptLog(tenv);
         tcg_temp_free_ptr(tenv);
     }
-
-    if(aflIgnoreAddr != (unsigned long)-1 && pc == aflIgnoreAddr){
-        gen_helper_aflIgnore();
-    }
-
 
     static TCGHelperInfo info; 
 

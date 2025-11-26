@@ -1307,7 +1307,7 @@ static void iommu_memory_region_initfn(Object *obj)
     mr->is_iommu = true;
 }
 
-// #define DEBUG_UNASSIGNED
+#define DEBUG_UNASSIGNED
 extern uint32_t mmio_start, mmio_end;
 bool getFuzz(uint8_t *buf, uint32_t size);
 void loadFuzz(void);
@@ -1323,7 +1323,7 @@ static uint64_t unassigned_mem_read(void *opaque, hwaddr addr,
 
 #ifdef DEBUG_UNASSIGNED
         if (aflEnabled)
-            qemu_log_mask(LOG_GUEST_ERROR, "Fuzzing unassigned mem read " HWADDR_FMT_plx " = 0x%"PRIx64"\n", addr, fuzzval);
+            qemu_log_mask(LOG_AFL, "Fuzzing unassigned mem read " HWADDR_FMT_plx " = 0x%"PRIx64"\n", addr, fuzzval);
         else
             printf("Unassigned mem read " HWADDR_FMT_plx "\n", addr);
 #endif

@@ -1,6 +1,5 @@
 DEF_HELPER_FLAGS_0(aflInterceptPanic, TCG_CALL_NO_RWG, void)
 DEF_HELPER_FLAGS_1(aflInterceptLog, TCG_CALL_NO_RWG, void, env)
-DEF_HELPER_FLAGS_0(aflIgnore, TCG_CALL_NO_RWG, void)
 DEF_HELPER_FLAGS_4(aflCall32, TCG_CALL_NO_RWG, i32, env, i32, i32, i32)
 DEF_HELPER_FLAGS_4(aflCall, TCG_CALL_NO_RWG, i64, env, i64, i64, i64)
 
