@@ -1317,13 +1317,17 @@ static uint64_t unassigned_mem_read(void *opaque, hwaddr addr,
 {
     uint64_t fuzzval;
 
-    if(aflStart) {
+    if(aflStart | replayInput) {
         getFuzz((uint8_t*)&fuzzval, size);
     }
 
 #ifdef DEBUG_UNASSIGNED
-        if (aflEnabled)
+        if (aflStart | replayInput)
+    #if TARGET_LONG_SIZE==8
             qemu_log_mask(LOG_AFL, "Fuzzing unassigned mem read " HWADDR_FMT_plx " = 0x%"PRIx64"\n", addr, fuzzval);
+    #elif TARGET_LONG_SIZE==4
+            qemu_log_mask(LOG_AFL, "Fuzzing unassigned mem read " HWADDR_FMT_plx " = 0x%"PRIx32"\n", addr, (uint32_t)fuzzval);
+    #endif
         else
             printf("Unassigned mem read " HWADDR_FMT_plx "\n", addr);
 #endif

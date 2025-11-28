@@ -8097,14 +8097,10 @@ extern GHashTable *patched_func_htable;
 extern GHashTable *exit_at_htable;
 extern uint32_t bb_cnt;
 static uint32_t arm_helper_func(CPUState *cpu){
-    static uint32_t cnt = 0;
     CPUARMState *env = cpu_env(cpu);
     void* element = NULL;
     static bool is_hook_init = false;
     func_hook_t func_hook_ptr;
-
-    cnt++;
-    qemu_log_mask(LOG_AFL, "%s: running at 0x%x bb_cnt:0x%x...\n", __func__, env->regs[15], bb_cnt); 
 
     if ( (element = g_hash_table_lookup(exit_at_htable, (gpointer)((uint64_t)env->regs[15])))){
         qemu_log_mask(LOG_AFL, "%s: exiting at 0x%x (%s) ... \n", __func__, env->regs[15], element? (const char*) element  : "unknown"); 
@@ -8122,7 +8118,7 @@ static uint32_t arm_helper_func(CPUState *cpu){
             func_hook_ptr(env);
         }
 
-
+        // bx lr
         if (env->thumb)
             env->regs[15] = env->regs[14] & ~1;
         else
@@ -8130,9 +8126,6 @@ static uint32_t arm_helper_func(CPUState *cpu){
         
         return 1;
     }
-
-    // TODO: fire an enabled IRQ in a whatever way, e.g., round-robin....
-
 
     return 0;
 }

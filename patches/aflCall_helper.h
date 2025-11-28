@@ -16,8 +16,8 @@ void loadFuzz(void);
 
 void loadFuzz(void) {
     FILE *fp;
-    
-    assert(aflStart == 1);
+
+    assert(( aflStart == 1 ) | ( replayInput == 1) );
 
     fp = fopen(aflFile, "rb");
     if(!fp) {
@@ -140,7 +140,7 @@ target_ulong startWork(CPUArchState *env, target_ulong ptr)
 target_ulong doneWork(target_ulong val)
 {
     //printf("pid %d: doneWork %lx\n", getpid(), val);fflush(stdout);
-    assert(aflStart == 1);
+    assert(( aflStart == 1 ) | ( replayInput == 1) );
 /* detecting logging as crashes hasnt been helpful and
    has occasionally been a problem.  We'll leave it to
    a post-analysis phase to look over dmesg output for

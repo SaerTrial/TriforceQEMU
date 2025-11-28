@@ -444,8 +444,13 @@ const void *HELPER(lookup_tb_ptr)(CPUArchState *env)
  * TCG is not considered a security-sensitive part of QEMU so this does not
  * affect the impact of CFI in environment with high security requirements
  */
+
+ 
 uint32_t bb_cnt = 0;
 void interrupt_firing(void);
+extern bool interrupt_firing_enabled;
+extern uint32_t firing_frequency;
+extern uint8_t firing_mode;
 
 static inline TranslationBlock * QEMU_DISABLE_CFI
 cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
@@ -500,19 +505,19 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
             }
         }
     }else{
+        qemu_log_mask(LOG_AFL, "[%s] running at 0x%x bb_cnt:0x%x...\n", __func__, (uint32_t)pc, bb_cnt); 
+
         CPUArchState *env = cpu_env(cpu);
         AFL_QEMU_CPU_SNIPPET2(env, pc);
-        bb_cnt++;
-        if (bb_cnt % 200 == 0){
-            qemu_log_mask(LOG_AFL,
-                       "%s: pre pending systick, pc: 0x%lx\n", __func__, pc);
-            cpu->neg.can_do_io = false;
-            bql_lock();
-            interrupt_firing();
-            bql_unlock();
-            cpu->neg.can_do_io = true;
-            qemu_log_mask(LOG_AFL,
-                       "%s: post systick pending, pc: 0x%lx\n", __func__, pc);
+        if (interrupt_firing_enabled){
+            bb_cnt++;
+            if (bb_cnt % firing_frequency == 0){
+                cpu->neg.can_do_io = false;
+                bql_lock();
+                interrupt_firing();
+                bql_unlock();
+                cpu->neg.can_do_io = true;
+            }
         }
     }
 

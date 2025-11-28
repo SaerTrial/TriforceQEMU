@@ -56,7 +56,7 @@
    regular instrumentation injected via afl-as.h. */
 
 #define AFL_QEMU_CPU_SNIPPET2(env, pc) do { \
-    if((pc == afl_entry_point || (pc|1) == afl_entry_point) && pc && getenv("AFLGETWORK") == 0 && aflEnabled) { \
+    if( (pc && getenv("AFLGETWORK") == 0) && aflEnabled) { \
       afl_setup(); \
       afl_forkserver(env); \
       aflStart = 1; \

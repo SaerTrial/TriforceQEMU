@@ -20,3 +20,4 @@ GTAGS
 *.swp
 *.patch
 *.gcov
+patches/fw-example/stm32h7s78-dk/stm32h7s78-dk.bin

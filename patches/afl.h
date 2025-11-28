@@ -6,6 +6,7 @@ extern unsigned long aflDmesgAddr;
 
 extern const char *aflConf;
 extern uint32_t aflEnabled;
+extern uint8_t replayInput;
 
 extern int aflEnableTicks;
 extern int aflStart;

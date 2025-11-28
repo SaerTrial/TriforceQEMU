@@ -1,0 +1,3 @@
+config REHOST_FUZZING
+    bool
+    default y
