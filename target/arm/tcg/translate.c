@@ -8089,7 +8089,7 @@ static void arm_tr_tb_stop(DisasContextBase *dcbase, CPUState *cpu)
 
 
 #include "qemu/main-loop.h"
-#include "function_hooks.h"
+#include "hw/rehosting/arm/function_hooks.h"
 
 
 void armv7m_nvic_set_pending(NVICState *s, int irq, bool secure);
@@ -8101,10 +8101,13 @@ static uint32_t arm_helper_func(CPUState *cpu){
     void* element = NULL;
     static bool is_hook_init = false;
     func_hook_t func_hook_ptr;
-
+    
+    qemu_log_mask(LOG_AFL, "[%s] executing at 0x%x ... \n",
+         __func__, (uint32_t)env->regs[15]); 
+    
     if ( (element = g_hash_table_lookup(exit_at_htable, (gpointer)((uint64_t)env->regs[15])))){
         qemu_log_mask(LOG_AFL, "%s: exiting at 0x%x (%s) ... \n", __func__, env->regs[15], element? (const char*) element  : "unknown"); 
-        _exit(0);
+        exit(0);
     }
 
     if ( (element = g_hash_table_lookup(patched_func_htable, (gpointer)((uint64_t)env->regs[15])))){

@@ -35,6 +35,7 @@
 #include "migration/vmstate.h"
 #include "exec/address-spaces.h"
 #include "patches/afl.h"
+#include "hw/rehosting/utils/mem.h"
 
 //#define DEBUG_UNASSIGNED
 
@@ -1308,7 +1309,6 @@ static void iommu_memory_region_initfn(Object *obj)
 }
 
 #define DEBUG_UNASSIGNED
-extern uint32_t mmio_start, mmio_end;
 bool getFuzz(uint8_t *buf, uint32_t size);
 void loadFuzz(void);
 
@@ -1317,19 +1317,14 @@ static uint64_t unassigned_mem_read(void *opaque, hwaddr addr,
 {
     uint64_t fuzzval;
 
-    if(aflStart | replayInput) {
-        getFuzz((uint8_t*)&fuzzval, size);
-    }
+    getFuzz((uint8_t*)&fuzzval, size);
 
 #ifdef DEBUG_UNASSIGNED
-        if (aflStart | replayInput)
     #if TARGET_LONG_SIZE==8
             qemu_log_mask(LOG_AFL, "Fuzzing unassigned mem read " HWADDR_FMT_plx " = 0x%"PRIx64"\n", addr, fuzzval);
     #elif TARGET_LONG_SIZE==4
             qemu_log_mask(LOG_AFL, "Fuzzing unassigned mem read " HWADDR_FMT_plx " = 0x%"PRIx32"\n", addr, (uint32_t)fuzzval);
     #endif
-        else
-            printf("Unassigned mem read " HWADDR_FMT_plx "\n", addr);
 #endif
 
     return fuzzval;
@@ -1473,7 +1468,7 @@ MemTxResult memory_region_dispatch_read(MemoryRegion *mr,
     }
     if (!memory_region_access_valid(mr, addr, size, false, attrs)) {
         *pval = unassigned_mem_read(mr, addr, size);
-        if (addr >= mmio_start && addr < mmio_end){
+        if (range_contain_addr(mmio_ranges, addr)) {
             adjust_endianness(mr, pval, op);
             return MEMTX_OK;
         }
@@ -1526,7 +1521,7 @@ MemTxResult memory_region_dispatch_write(MemoryRegion *mr,
     }
     if (!memory_region_access_valid(mr, addr, size, true, attrs)) {
         unassigned_mem_write(mr, addr, data, size);
-        if (addr >= mmio_start && addr < mmio_end) {
+        if (range_contain_addr(mmio_ranges, addr)) {
             return MEMTX_OK;
         }
         return MEMTX_DECODE_ERROR;

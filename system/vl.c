@@ -2907,12 +2907,12 @@ void qemu_init(int argc, char **argv)
             case QEMU_OPTION_display:
                 parse_display(optarg);
                 break;
-            case QEMU_OPTION_aflConf:
-                aflConf = (char *)optarg;
+            case QEMU_OPTION_covFile:
+                covFile = (char *)optarg;
                 break;
             case QEMU_OPTION_aflFile:
                 aflFile = (char *)optarg;
-                break;
+                break;         
             case QEMU_OPTION_aflPanicAddr:
                 aflPanicAddr = strtoul(optarg, NULL, 16);
                 break;

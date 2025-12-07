@@ -43,6 +43,12 @@
 #include "internal-target.h"
 #include "patches/afl-qemu-cpu-inl.h"
 
+
+/* TriforceQEMU */
+#include "hw/rehosting/arm/interrupt_firing.h"
+uint32_t bb_cnt = 0;
+
+
 /* -icount align implementation. */
 
 typedef struct SyncClocks {
@@ -445,13 +451,6 @@ const void *HELPER(lookup_tb_ptr)(CPUArchState *env)
  * affect the impact of CFI in environment with high security requirements
  */
 
- 
-uint32_t bb_cnt = 0;
-void interrupt_firing(void);
-extern bool interrupt_firing_enabled;
-extern uint32_t firing_frequency;
-extern uint8_t firing_mode;
-
 static inline TranslationBlock * QEMU_DISABLE_CFI
 cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
 {
@@ -505,8 +504,10 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
             }
         }
     }else{
-        qemu_log_mask(LOG_AFL, "[%s] running at 0x%x bb_cnt:0x%x...\n", __func__, (uint32_t)pc, bb_cnt); 
-
+        // qemu_log_mask(LOG_AFL, "[%s] executed at 0x%x bb_cnt:0x%x...\n", __func__, (uint32_t)pc, bb_cnt); 
+        if (cov_fp)
+            fprintf(cov_fp, "0x%08" PRIx32 ", %8u, [  ]\n", (uint32_t)pc, itb->size);
+        
         CPUArchState *env = cpu_env(cpu);
         AFL_QEMU_CPU_SNIPPET2(env, pc);
         if (interrupt_firing_enabled){

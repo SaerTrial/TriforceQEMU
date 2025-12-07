@@ -17,12 +17,10 @@ void loadFuzz(void);
 void loadFuzz(void) {
     FILE *fp;
 
-    assert(( aflStart == 1 ) | ( replayInput == 1) );
-
     fp = fopen(aflFile, "rb");
     if(!fp) {
         perror(aflFile);
-        exit(1);
+        _exit(1);
     }
 
     fseek(fp, 0L, SEEK_END);
@@ -31,11 +29,11 @@ void loadFuzz(void) {
     fseek(fp, 0L, SEEK_SET); 
 
     if ( (fuzz = malloc(_size+1)) == NULL ) {
-        exit(1);
+        _exit(1);
     }
 
     if (fread(fuzz, _size, 1, fp) == 0) {
-        exit(1);
+        _exit(1);
     }
 
     fclose(fp);
@@ -140,7 +138,6 @@ target_ulong startWork(CPUArchState *env, target_ulong ptr)
 target_ulong doneWork(target_ulong val)
 {
     //printf("pid %d: doneWork %lx\n", getpid(), val);fflush(stdout);
-    assert(( aflStart == 1 ) | ( replayInput == 1) );
 /* detecting logging as crashes hasnt been helpful and
    has occasionally been a problem.  We'll leave it to
    a post-analysis phase to look over dmesg output for
@@ -216,10 +213,13 @@ void helper_aflInterceptLog(CPUArchState *env)
 
 void helper_aflInterceptPanic(void)
 {
-    if(!aflStart)
-        return;
+    // if(!aflStart)
+    //     return;
     qemu_log_mask(LOG_AFL,
-                      "%s\n", __func__);
+                      "[%s] crashing.... \n", __func__);
+    if (cov_fp)
+            // FIXME: fix the size as 4 to colorize cov map
+            fprintf(cov_fp, "0x%08" PRIx32 ", %8u, [  ]\n", (uint32_t)aflPanicAddr, 4);
     _exit(32);
 }
 

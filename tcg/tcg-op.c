@@ -3358,11 +3358,11 @@ void gen_aflBBlock(ArchHelper func, CPUState* cpu, uint64_t pc){
         gen_helper_aflInterceptPanic();
     }
     
-    if(aflDmesgAddr != (unsigned long)-1 && pc == aflDmesgAddr){
-        TCGv_ptr tenv = tcg_constant_ptr(cpu_env(cpu));
-        gen_helper_aflInterceptLog(tenv);
-        tcg_temp_free_ptr(tenv);
-    }
+    // if(aflDmesgAddr != (unsigned long)-1 && pc == aflDmesgAddr){
+    //     TCGv_ptr tenv = tcg_constant_ptr(cpu_env(cpu));
+    //     gen_helper_aflInterceptLog(tenv);
+    //     tcg_temp_free_ptr(tenv);
+    // }
 
     static TCGHelperInfo info; 
 

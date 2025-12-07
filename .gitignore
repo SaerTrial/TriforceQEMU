@@ -21,3 +21,7 @@ GTAGS
 *.patch
 *.gcov
 patches/fw-example/stm32h7s78-dk/stm32h7s78-dk.bin
+patches/fw-example/stm32h7s78-dk/testcase
+patches/fw-example/nucleo753zi/testcase
+patches/fw-example/nucleo753zi-no-intc/testcase
+

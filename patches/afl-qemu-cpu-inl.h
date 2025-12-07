@@ -56,7 +56,7 @@
    regular instrumentation injected via afl-as.h. */
 
 #define AFL_QEMU_CPU_SNIPPET2(env, pc) do { \
-    if( (pc && getenv("AFLGETWORK") == 0) && aflEnabled) { \
+    if((pc == afl_entry_point || (pc|1) == afl_entry_point) && pc && getenv("AFLGETWORK") == 0 && (aflFile != NULL)) { \
       afl_setup(); \
       afl_forkserver(env); \
       aflStart = 1; \
@@ -79,7 +79,6 @@ target_ulong afl_entry_point = 0, /* ELF entry point (_start) */
           afl_start_code = 0,  /* .text start pointer      */
           afl_end_code = 0;    /* .text end pointer        */
 
-uint32_t aflEnabled = 0; /* AFL enable */
 
 int aflStart = 0;               /* we've started fuzzing */
 int aflEnableTicks = 0;         /* re-enable ticks for each test */
@@ -90,8 +89,9 @@ CPUState *restart_cpu = NULL;    /* cpu to restart */
 extern uint8_t *fuzz;
 
 /* from command line options */
-const char *aflConf = NULL;
-const char *aflFile = "/tmp/work";
+FILE* cov_fp = NULL;
+const char *covFile = NULL;
+const char *aflFile = NULL;
 unsigned long aflPanicAddr = (unsigned long)-1;
 unsigned long aflDmesgAddr = (unsigned long)-1;
 /* Set in the child process in forkserver mode: */
@@ -131,6 +131,7 @@ void afl_setup(void) {
   char *id_str = getenv(SHM_ENV_VAR),
        *inst_r = getenv("AFL_INST_RATIO");
 
+
   int shm_id;
 
   if (inst_r) {
@@ -156,8 +157,10 @@ void afl_setup(void) {
     /* With AFL_INST_RATIO set to a low value, we want to touch the bitmap
        so that the parent doesn't give up on us. */
 
-    if (inst_r) afl_area_ptr[0] = 1;
-
+    if (inst_r) {
+      afl_area_ptr[0] = 1;
+    }
+    
   }
 
   if (getenv("AFL_INST_LIBS")) {
@@ -178,50 +181,98 @@ void afl_setup(void) {
 
 void afl_forkserver(CPUArchState *env) {
 
-  static unsigned char tmp[4];
+  // static unsigned char tmp[4];
+  // uint8_t     child_stopped = 0;
+  uint32_t    __afl_old_forkserver = 0;
+  uint32_t    was_killed;
+  uint32_t    version = 0x41464c00 + FS_NEW_VERSION_MAX;
+  uint32_t    tmp = version ^ 0xffffffff, status2, status = version;
+  uint8_t     *msg = (uint8_t *)&status;
+  uint8_t     *reply = (uint8_t *)&status2;
+  pid_t       child_pid;
+  int         t_fd[2];
 
   if (!afl_area_ptr) return;
+  
+
+  if (getenv("AFL_OLD_FORKSERVER")) {
+
+    __afl_old_forkserver = 1;
+    status = 0;
+
+    fprintf(stderr, "The current version of afl++ qemu mode "
+      "supports forkserver v1, but afl-fuzz still retains "
+      "support for the old forkserver (qemu) version\n");
+  }
+
 
   /* Tell the parent that we're alive. If the parent doesn't want
      to talk, assume that we're not running in forkserver mode. */
-  if (write(FORKSRV_FD + 1, tmp, 4) != 4) return;
 
+  if (write(FORKSRV_FD + 1, msg, 4) != 4) return;
+
+  // new forkserver model
   afl_forksrv_pid = getpid();
 
-  /* All right, let's await orders... */
 
-  while (1) {
+ if (!__afl_old_forkserver) {
 
-    pid_t child_pid;
-    int status, t_fd[2];
+    if (read(FORKSRV_FD, reply, 4) != 4) { _exit(1); }
+    
+    if (tmp != status2) {
 
-    /* Whoops, parent dead? */
-
-    if (read(FORKSRV_FD, tmp, 4) != 4) exit(2);
-
-    /* Establish a channel with child to grab translation commands. We'll
-       read from t_fd[0], child will write to TSL_FD. */
-
-    if (pipe(t_fd) || dup2(t_fd[1], TSL_FD) < 0) exit(3);
-    close(t_fd[1]);
-
-    child_pid = fork();
-    if (child_pid < 0) exit(4);
-
-    if (!child_pid) {
-
-      /* Child process. Close descriptors and run free. */
-
-      afl_fork_child = 1;
-      close(FORKSRV_FD);
-      close(FORKSRV_FD + 1);
-      close(t_fd[0]);
-      return;
+      fprintf(stderr, "wrong forkserver message from AFL++ tool");
+      _exit(1);
 
     }
 
-    /* Parent. */
+    // send the set/requested options to forkserver
+    status = FS_NEW_OPT_MAPSIZE;  // we always send the map size
 
+    uint32_t __afl_map_size = MAP_SIZE;
+    
+    if (write(FORKSRV_FD + 1, msg, 4) != 4) _exit(1);
+
+    // FS_NEW_OPT_MAPSIZE - we always send the map size
+    status = __afl_map_size;
+    if (write(FORKSRV_FD + 1, msg, 4) != 4) _exit(1); 
+
+    // send welcome message as final message
+    status = version;
+    if (write(FORKSRV_FD + 1, msg, 4) != 4) _exit(1);
+
+  }
+  /* All right, let's await orders... */
+  while (1) {
+
+    /* Whoops, parent dead? */
+
+    if (read(FORKSRV_FD, &was_killed, 4) != 4) exit(2);
+    
+      /* Establish a channel with child to grab translation commands. We'll
+        read from t_fd[0], child will write to TSL_FD. */
+
+      if (pipe(t_fd) || dup2(t_fd[1], TSL_FD) < 0) exit(3);
+      close(t_fd[1]);
+
+      child_pid = fork();
+      if (child_pid < 0) exit(4);
+
+      if (!child_pid) {
+        /* Child process. Close descriptors and run free. */
+
+        /* We want to touch the bitmap, so that the parent doesn't give up on us */
+        afl_area_ptr[0] = 1;
+
+        afl_fork_child = 1;
+        close(FORKSRV_FD);
+        close(FORKSRV_FD + 1);
+        close(t_fd[0]);
+        return;
+
+      }
+    
+    /* Parent. */
     close(TSL_FD);
 
     if (write(FORKSRV_FD + 1, &child_pid, 4) != 4) exit(5);
@@ -232,8 +283,10 @@ void afl_forkserver(CPUArchState *env) {
 
     /* Get and relay exit status to parent. */
 
-    if (waitpid(child_pid, &status, 0) < 0) exit(6);
+    if (waitpid(child_pid, (int *)&status, 0) < 0) exit(6);   
+
     status = status >> 8;
+
     if (write(FORKSRV_FD + 1, &status, 4) != 4) exit(7);
   }
 
@@ -246,9 +299,13 @@ static inline target_ulong aflHash(target_ulong cur_loc) {
 
   /* Optimize for cur_loc > afl_end_code, which is the most likely case on
      Linux systems. */
+  if (!afl_area_ptr) return 0;
 
-  if (cur_loc > afl_end_code || cur_loc < afl_start_code || !afl_area_ptr)
-    return 0;
+  // TODO: add those options in a configuration file
+  // if (cur_loc > afl_end_code || cur_loc < afl_start_code || !afl_area_ptr) {
+  //   return 0;
+  // }
+
 
 #ifdef DEBUG_EDGES
   if(1) {
@@ -282,15 +339,15 @@ static inline target_ulong aflHash(target_ulong cur_loc) {
      address. This keeps the instrumented locations stable across runs. */
 
   if (h >= afl_inst_rms) return 0;
+
   return h;
 }
 
-/* todo: generate calls to helper_aflMaybeLog during translation */
 static inline void helper_aflMaybeLog(target_ulong cur_loc) {
   static __thread target_ulong prev_loc;
 
   afl_area_ptr[cur_loc ^ prev_loc]++;
-  // qemu_log("afl_area_ptr[%x ^ %x] = %d\n", cur_loc, prev_loc, (int)afl_area_ptr[cur_loc ^ prev_loc]);
+  // qemu_log_mask(LOG_AFL, "afl_area_ptr[%x ^ %x] = %d\n", cur_loc, prev_loc, (int)afl_area_ptr[cur_loc ^ prev_loc]);
   prev_loc = cur_loc >> 1;
 }
 
@@ -331,8 +388,6 @@ static TranslationBlock *tb_htable_lookup(CPUState *cpu, vaddr pc,
                                           uint64_t cs_base, uint32_t flags,
                                           uint32_t cflags);
 
-// static void tb_lock_pages(TranslationBlock *tb);
-
 
 static void afl_wait_tsl(CPUArchState *env, int fd) {
 
@@ -352,7 +407,7 @@ static void afl_wait_tsl(CPUArchState *env, int fd) {
 
     tb = tb_htable_lookup(cpu, t.pc, t.cs_base, t.flags, t.cflags);
 
-    if(!tb && (t.pc >= 0xffffffff81000000 && t.pc <= 0xffffffff81ffffff )) {
+    if(!tb && ((t.pc >= 0x08000000 && t.pc <= 0x081fffff ) || (t.pc >= 0x80000000 && t.pc <= 0x81ffffff))) {
           mmap_lock();
           tb_gen_code(cpu, t.pc, t.cs_base, t.flags, t.cflags);
           mmap_unlock();

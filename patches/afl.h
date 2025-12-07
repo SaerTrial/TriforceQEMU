@@ -1,12 +1,12 @@
 #ifndef __AFL_H
 #define __AFL_H
 extern const char *aflFile;
+extern const char *covFile;
+extern FILE* cov_fp;
+
 extern unsigned long aflPanicAddr;
 extern unsigned long aflDmesgAddr;
-
-extern const char *aflConf;
-extern uint32_t aflEnabled;
-extern uint8_t replayInput;
+extern uint32_t afl_entry_point;
 
 extern int aflEnableTicks;
 extern int aflStart;

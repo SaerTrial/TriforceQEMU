@@ -4329,9 +4329,8 @@ SRST
     from ./my\_blob.bin.
 ERST
 
-DEF("aflConf", HAS_ARG, QEMU_OPTION_aflConf, \
-    "-aflConf configurations for fuzzing \n", QEMU_ARCH_ALL)
-
+DEF("covFile", HAS_ARG, QEMU_OPTION_covFile, \
+    "-covFile fname  A file saving coverage data for catographyer \n", QEMU_ARCH_ALL)
 DEF("aflFile", HAS_ARG, QEMU_OPTION_aflFile, \
     "-aflFile fname  AFL input sourced from fname\n", QEMU_ARCH_ALL)
 DEF("aflPanicAddr", HAS_ARG, QEMU_OPTION_aflPanicAddr, \

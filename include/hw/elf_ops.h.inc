@@ -620,9 +620,9 @@ static ssize_t glue(load_elf, SZ)(const char *name, int fd,
     }
     
     /* armv7m will end up resolving an elf here, so fill up necessary addr*/
-    afl_start_code = low;
-    afl_end_code = high;
-    afl_entry_point = *pentry;
+    // afl_start_code = low;
+    // afl_end_code = high;
+    // afl_entry_point = *pentry;
 
     ret = total_size;
  fail:

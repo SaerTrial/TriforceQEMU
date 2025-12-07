@@ -347,21 +347,13 @@
 #define  CTEST_CORE_TRG_MS  1000
 #define  CTEST_BUSY_CYCLES  (10 * 1000 * 1000)
 
-/* Uncomment this to use inferior block-coverage-based instrumentation. Note
-   that you need to recompile the target binary for this to have any effect: */
+/* New Forkserver */
+#define FS_NEW_VERSION_MIN 1
+#define FS_NEW_VERSION_MAX 1
+#define FS_NEW_ERROR 0xeffe0000
+#define FS_NEW_OPT_MAPSIZE 0x00000001      // parameter: 32 bit value
+#define FS_NEW_OPT_SHDMEM_FUZZ 0x00000002  // parameter: none
+#define FS_NEW_OPT_AUTODICT 0x00000800     // autodictionary data
 
-// #define COVERAGE_ONLY
-
-/* Uncomment this to ignore hit counts and output just one bit per tuple.
-   As with the previous setting, you will need to recompile the target
-   binary: */
-
-// #define SKIP_COUNTS
-
-/* Uncomment this to use instrumentation data to record newly discovered paths,
-   but do not use them as seeds for fuzzing. This is useful for conveniently
-   measuring coverage that could be attained by a "dumb" fuzzing algorithm: */
-
-// #define IGNORE_FINDS
 
 #endif /* ! _HAVE_CONFIG_H */
