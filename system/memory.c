@@ -1315,6 +1315,7 @@ void loadFuzz(void);
 static uint64_t unassigned_mem_read(void *opaque, hwaddr addr,
                                     unsigned size)
 {
+    return 0;
     uint64_t fuzzval;
 
     getFuzz((uint8_t*)&fuzzval, size);
@@ -1468,10 +1469,11 @@ MemTxResult memory_region_dispatch_read(MemoryRegion *mr,
     }
     if (!memory_region_access_valid(mr, addr, size, false, attrs)) {
         *pval = unassigned_mem_read(mr, addr, size);
-        if (range_contain_addr(mmio_ranges, addr)) {
+        /*
+	if (range_contain_addr(mmio_ranges, addr)) {
             adjust_endianness(mr, pval, op);
             return MEMTX_OK;
-        }
+        }*/
         return MEMTX_DECODE_ERROR;
     }
 
@@ -1521,9 +1523,10 @@ MemTxResult memory_region_dispatch_write(MemoryRegion *mr,
     }
     if (!memory_region_access_valid(mr, addr, size, true, attrs)) {
         unassigned_mem_write(mr, addr, data, size);
+	/*
         if (range_contain_addr(mmio_ranges, addr)) {
             return MEMTX_OK;
-        }
+        }*/
         return MEMTX_DECODE_ERROR;
     }
 

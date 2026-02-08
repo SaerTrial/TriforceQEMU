@@ -65,7 +65,8 @@ bool getFuzz(uint8_t *buf, uint32_t size) {
 }
 
 target_ulong startForkserver(CPUArchState *env, target_ulong enableTicks)
-{
+{ 
+qemu_log_mask(LOG_AFL, "[NATIVE FUZZ] startForkserver, enableTicks: %d \n", enableTicks);
     //printf("pid %d: startForkServer\n", getpid()); fflush(stdout);
     if(afl_fork_child) {
         /* 
@@ -115,20 +116,22 @@ target_ulong getWork(CPUArchState *env, target_ulong ptr, target_ulong sz)
         ptr ++;
     }
     fclose(fp);
+    qemu_log_mask(LOG_AFL, "[NATIVE FUZZ] getWork, size: 0x%x, ret size: 0x%x\n", sz, retsz);
     return retsz;
 }
 
 target_ulong startWork(CPUArchState *env, target_ulong ptr)
 {
+	qemu_log_mask(LOG_AFL, "[NATIVE FUZZ] startWork\n");
     target_ulong start, end;
     input_already_given = false;
     // qemu_log("pid %d: ptr %lx\n", getpid(), ptr);
-    start = cpu_ldq_data(env, ptr);
-    end = cpu_ldq_data(env, ptr + sizeof start);
+    // start = cpu_ldq_data(env, ptr);
+      end = cpu_ldq_data(env, ptr + sizeof start);
     // qemu_log("pid %d: startWork %x - %x\n", getpid(), start, end);
 
-    afl_start_code = start;
-    afl_end_code   = end;
+    afl_start_code = 0x0;
+    afl_end_code   = 0xffffffff;
     aflGotLog = 0;
     aflStart = 1;
     // qemu_log("aflStart = %d\n", aflStart);
@@ -137,6 +140,7 @@ target_ulong startWork(CPUArchState *env, target_ulong ptr)
 
 target_ulong doneWork(target_ulong val)
 {
+	qemu_log_mask(LOG_AFL, "[NATIVE FUZZ] doneWork :%d\n", val);
     //printf("pid %d: doneWork %lx\n", getpid(), val);fflush(stdout);
 /* detecting logging as crashes hasnt been helpful and
    has occasionally been a problem.  We'll leave it to

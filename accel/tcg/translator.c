@@ -142,7 +142,7 @@ void translator_loop(CPUState *cpu, TranslationBlock *tb, int *max_insns,
     tcg_debug_assert(db->is_jmp == DISAS_NEXT);  /* no early exit */
 
     /* AFL-related */
-    gen_aflBBlock(ops->arch_helper, cpu, db->pc_first);
+    // gen_aflBBlock(ops->arch_helper, cpu, db->pc_first);
 
     /* Start translating.  */
     icount_start_insn = gen_tb_start(db, cflags);
