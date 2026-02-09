@@ -56,7 +56,7 @@
    regular instrumentation injected via afl-as.h. */
 
 #define AFL_QEMU_CPU_SNIPPET2(env, pc) do { \
-    if((pc == afl_entry_point || (pc|1) == afl_entry_point) && pc && getenv("AFLGETWORK") == 0 && (aflFile != NULL)) { \
+    if((pc == afl_entry_point || (pc|1) == afl_entry_point) && pc && getenv("AFLGETWORK") == 0) { \
       afl_setup(); \
       afl_forkserver(env); \
       aflStart = 1; \
@@ -94,6 +94,8 @@ const char *covFile = NULL;
 const char *aflFile = NULL;
 unsigned long aflPanicAddr = (unsigned long)-1;
 unsigned long aflDmesgAddr = (unsigned long)-1;
+unsigned char * shared_buf = NULL;
+unsigned int *shared_buf_len;
 /* Set in the child process in forkserver mode: */
 
 unsigned char afl_fork_child = 0;
@@ -177,6 +179,44 @@ void afl_setup(void) {
   rcu_disable_atfork();
 }
 
+
+static void afl_map_shm_fuzz(void) {
+
+  char *id_str = getenv(SHM_FUZZ_ENV_VAR);
+
+  if (id_str) {
+
+    unsigned int shm_id = atoi(id_str);
+    unsigned char *map = (unsigned char *)shmat(shm_id, NULL, 0);
+    /* Whooooops. */
+
+    if (!map || map == (void *)-1) {
+
+      perror("[AFL] ERROR: could not access fuzzing shared memory");
+      exit(1);
+
+    }
+
+    shared_buf_len = (unsigned int *)map;
+    shared_buf = map + sizeof(unsigned int);
+
+    if (getenv("AFL_DEBUG")) {
+
+      fprintf(stderr, "[AFL] DEBUG: successfully got fuzzing shared memory\n");
+
+    }
+
+  } else {
+
+    fprintf(stderr,
+            "[AFL] ERROR:  variable for fuzzing shared memory is not set\n");
+    exit(1);
+
+  }
+
+}
+
+
 /* Fork server logic, invoked once we hit _start. */
 
 void afl_forkserver(CPUArchState *env) {
@@ -185,7 +225,7 @@ void afl_forkserver(CPUArchState *env) {
   // uint8_t     child_stopped = 0;
   uint32_t    __afl_old_forkserver = 0;
   uint32_t    was_killed;
-  uint32_t    version = 0x41464c00 + FS_NEW_VERSION_MAX;
+  uint32_t    version = (0x41464c00 + FS_NEW_VERSION_MAX);
   uint32_t    tmp = version ^ 0xffffffff, status2, status = version;
   uint8_t     *msg = (uint8_t *)&status;
   uint8_t     *reply = (uint8_t *)&status2;
@@ -208,7 +248,6 @@ void afl_forkserver(CPUArchState *env) {
 
   /* Tell the parent that we're alive. If the parent doesn't want
      to talk, assume that we're not running in forkserver mode. */
-
   if (write(FORKSRV_FD + 1, msg, 4) != 4) return;
 
   // new forkserver model
@@ -219,6 +258,13 @@ void afl_forkserver(CPUArchState *env) {
 
     if (read(FORKSRV_FD, reply, 4) != 4) { _exit(1); }
     
+    if (status2 & FS_OPT_ENABLED) {
+        if (status2 & FS_OPT_SHDMEM_FUZZ) {
+            // shared memory fuzzing active
+            qemu_log_mask(LOG_AFL, "[NATIVE FUZZ] SHDMEM_FUZZ enabled already\n");
+        }
+    }
+
     if (tmp != status2) {
 
       fprintf(stderr, "wrong forkserver message from AFL++ tool");
@@ -227,7 +273,11 @@ void afl_forkserver(CPUArchState *env) {
     }
 
     // send the set/requested options to forkserver
+  
     status = FS_NEW_OPT_MAPSIZE;  // we always send the map size
+    if (aflFile == NULL) {
+      status |= FS_NEW_OPT_SHDMEM_FUZZ;
+    }
 
     uint32_t __afl_map_size = MAP_SIZE;
     
@@ -242,6 +292,9 @@ void afl_forkserver(CPUArchState *env) {
     if (write(FORKSRV_FD + 1, msg, 4) != 4) _exit(1);
 
   }
+
+  if (aflFile == NULL) afl_map_shm_fuzz();
+
   /* All right, let's await orders... */
   while (1) {
 
@@ -291,7 +344,6 @@ void afl_forkserver(CPUArchState *env) {
   }
 
 }
-
 
 static inline target_ulong aflHash(target_ulong cur_loc) {
   if(!aflStart)
@@ -411,9 +463,9 @@ static void afl_wait_tsl(CPUArchState *env, int fd) {
           mmap_lock();
           tb_gen_code(cpu, t.pc, t.cs_base, t.flags, t.cflags);
           mmap_unlock();
-          printf("wait_tsl %lx -- jit\n", t.pc); fflush(stdout);
+          //printf("wait_tsl %lx -- jit\n", t.pc); fflush(stdout);
     }else{
-      printf("wait_tsl %lx -- ignore\n", t.pc); fflush(stdout);
+      //printf("wait_tsl %lx -- ignore\n", t.pc); fflush(stdout);
     }
     
   }

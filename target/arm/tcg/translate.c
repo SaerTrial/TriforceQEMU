@@ -8091,20 +8091,23 @@ static void arm_tr_tb_stop(DisasContextBase *dcbase, CPUState *cpu)
 #include "qemu/main-loop.h"
 #include "hw/rehosting/arm/function_hooks.h"
 
-
+#ifdef CONFIG_SOFTMMU   
 void armv7m_nvic_set_pending(NVICState *s, int irq, bool secure);
 extern GHashTable *patched_func_htable;
 extern GHashTable *exit_at_htable;
+#endif
+
 extern uint32_t bb_cnt;
 static uint32_t arm_helper_func(CPUState *cpu){
     CPUARMState *env = cpu_env(cpu);
+#ifdef CONFIG_SOFTMMU  
     void* element = NULL;
     static bool is_hook_init = false;
     func_hook_t func_hook_ptr;
     
     qemu_log_mask(LOG_AFL, "[%s] executing at 0x%x ... \n",
          __func__, (uint32_t)env->regs[15]); 
-    
+  
     if ( (element = g_hash_table_lookup(exit_at_htable, (gpointer)((uint64_t)env->regs[15])))){
         qemu_log_mask(LOG_AFL, "%s: exiting at 0x%x (%s) ... \n", __func__, env->regs[15], element? (const char*) element  : "unknown"); 
         exit(0);
@@ -8120,7 +8123,6 @@ static uint32_t arm_helper_func(CPUState *cpu){
         if (( func_hook_ptr = g_hash_table_lookup(func_ptr_htable, element))) {
             func_hook_ptr(env);
         }
-
         // bx lr
         if (env->thumb)
             env->regs[15] = env->regs[14] & ~1;
@@ -8129,6 +8131,7 @@ static uint32_t arm_helper_func(CPUState *cpu){
         
         return 1;
     }
+#endif
 
     return 0;
 }

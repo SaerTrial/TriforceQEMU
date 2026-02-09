@@ -510,6 +510,7 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
         
         CPUArchState *env = cpu_env(cpu);
         AFL_QEMU_CPU_SNIPPET2(env, pc);
+        #ifdef CONFIG_SOFTMMU
         if (interrupt_firing_enabled){
             bb_cnt++;
             if (bb_cnt % firing_frequency == 0){
@@ -520,6 +521,7 @@ cpu_tb_exec(CPUState *cpu, TranslationBlock *itb, int *tb_exit)
                 cpu->neg.can_do_io = true;
             }
         }
+        #endif
     }
 
     /*

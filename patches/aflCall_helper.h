@@ -17,26 +17,32 @@ void loadFuzz(void);
 void loadFuzz(void) {
     FILE *fp;
 
-    fp = fopen(aflFile, "rb");
-    if(!fp) {
-        perror(aflFile);
-        _exit(1);
+    if (aflFile) {
+        fp = fopen(aflFile, "rb");
+        if(!fp) {
+            perror(aflFile);
+            _exit(1);
+        }
+
+        fseek(fp, 0L, SEEK_END);
+        target_ulong _size = ftell(fp);
+        fuzz_size = _size;
+        fseek(fp, 0L, SEEK_SET); 
+
+        if ( (fuzz = malloc(_size+1)) == NULL ) {
+            _exit(1);
+        }
+
+        if (fread(fuzz, _size, 1, fp) == 0) {
+            _exit(1);
+        }
+
+        fclose(fp);
+    }else{
+        fuzz = shared_buf;
+        fuzz_size = shared_buf_len;
     }
 
-    fseek(fp, 0L, SEEK_END);
-    target_ulong _size = ftell(fp);
-    fuzz_size = _size;
-    fseek(fp, 0L, SEEK_SET); 
-
-    if ( (fuzz = malloc(_size+1)) == NULL ) {
-        _exit(1);
-    }
-
-    if (fread(fuzz, _size, 1, fp) == 0) {
-        _exit(1);
-    }
-
-    fclose(fp);
 }
 
 
@@ -57,7 +63,7 @@ bool getFuzz(uint8_t *buf, uint32_t size) {
     }
     else {
         qemu_log_mask(LOG_AFL, "[NATIVE FUZZ] Running out of inputs \n"); 
-        free(fuzz);
+        if (aflFile) free(fuzz);
         doneWork(0);
     }
 
@@ -102,20 +108,33 @@ target_ulong getWork(CPUArchState *env, target_ulong ptr, target_ulong sz)
     unsigned char ch;
     //printf("pid %d: getWork %lx %lx\n", getpid(), ptr, sz);fflush(stdout);
     assert(aflStart == 0);
-    fp = fopen(aflFile, "rb");
-    if(!fp) {
-         perror(aflFile);
-         return -1;
+
+    if (aflFile) {
+        fp = fopen(aflFile, "rb");
+        if(!fp) {
+            perror(aflFile);
+            qemu_log_mask(LOG_AFL, "[NATIVE FUZZ] fopen aflFile failed! \n");
+            return -1;
+        }
+        retsz = 0;
+        while(retsz < sz) {
+            if(fread(&ch, 1, 1, fp) == 0)
+                break;
+            cpu_stb_data(env, ptr, ch);
+            retsz ++;
+            ptr ++;
+        }
+        fclose(fp);
+    }else {
+        retsz = 0;
+        fuzz = shared_buf;
+        while(retsz < sz && sz < shared_buf_len) {
+            cpu_stb_data(env, ptr, *fuzz);
+            retsz ++;
+            ptr ++;
+            fuzz ++;
+        }
     }
-    retsz = 0;
-    while(retsz < sz) {
-        if(fread(&ch, 1, 1, fp) == 0)
-            break;
-        cpu_stb_data(env, ptr, ch);
-        retsz ++;
-        ptr ++;
-    }
-    fclose(fp);
     qemu_log_mask(LOG_AFL, "[NATIVE FUZZ] getWork, size: 0x%x, ret size: 0x%x\n", sz, retsz);
     return retsz;
 }
@@ -127,7 +146,7 @@ target_ulong startWork(CPUArchState *env, target_ulong ptr)
     input_already_given = false;
     // qemu_log("pid %d: ptr %lx\n", getpid(), ptr);
     // start = cpu_ldq_data(env, ptr);
-      end = cpu_ldq_data(env, ptr + sizeof start);
+    // end = cpu_ldq_data(env, ptr + sizeof start);
     // qemu_log("pid %d: startWork %x - %x\n", getpid(), start, end);
 
     afl_start_code = 0x0;

@@ -3,7 +3,8 @@
 extern const char *aflFile;
 extern const char *covFile;
 extern FILE* cov_fp;
-
+extern unsigned char * shared_buf;
+extern unsigned int *shared_buf_len;
 extern unsigned long aflPanicAddr;
 extern unsigned long aflDmesgAddr;
 extern uint32_t afl_entry_point;

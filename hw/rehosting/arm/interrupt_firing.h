@@ -4,7 +4,11 @@
 #include "qapi/error.h"
 #include "qemu/error-report.h"
 #include "net/net.h"
+
+#if defined(CONFIG_SOFTMMU)
 #include "hw/char/serial.h"
+#endif
+
 #include "qemu/cutils.h"
 #include "qapi/qmp/qdict.h"
 #include "qapi/qmp/qnum.h"
@@ -13,7 +17,11 @@
 #include "qapi/qmp/qstring.h"
 #include "qapi/qmp/qjson.h"
 #include "qemu/log.h"
+#if defined(CONFIG_SOFTMMU)
 #include "hw/intc/armv7m_nvic.h"
+#else
+#define NVIC_MAX_VECTORS 100
+#endif
 #include "target/arm/cpu.h"
 
 
