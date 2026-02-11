@@ -1,5 +1,16 @@
 This project extends QEMU9.1 for rehosting-based fuzzing and concolic fuzzing.
 
+This branch gets adapted for linux fuzzing, in support of fuzzing userland programs and system mode emulation
+for exploit development. 
+
+An example command:
+```bash
+proot -R rv6700-rootfs/ -b rv6700-rootfs/tmp:/tmp /qemu-arm-static \
+-E LD_PRELOAD="./libnvram_custom.so ./lib/libdl.so.0" /usr/sbin/upnpd_daemon
+```
+
+with `proot`, there is no need to use `chroot` locally anymore, which will usually mess things up.
+
 
 ===========
 QEMU README
