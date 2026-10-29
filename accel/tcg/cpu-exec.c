@@ -44,7 +44,7 @@
 #include "patches/afl-qemu-cpu-inl.h"
 
 
-/* TriforceQEMU */
+/* triforce-qemu */
 #include "hw/rehosting/arm/interrupt_firing.h"
 uint32_t bb_cnt = 0;
 

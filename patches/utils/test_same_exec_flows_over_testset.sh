@@ -6,16 +6,16 @@ if [[ $# -ne 2 ]]; then
     exit 1
 fi
 
-if [ ! -f "./TriforceQEMU/build/qemu-system-arm" ]; then
+if [ ! -f "./triforce-qemu/build/qemu-system-arm" ]; then
 
-  echo "[-] Error: ../TriforceQEMU not found - compile first! or run the script in the same folder where TriforceQEMU lies at"
+  echo "[-] Error: ../triforce-qemu not found - compile first! or run the script in the same folder where triforce-qemu lies at"
   exit 1
 fi
 
 
-if [ ! -f "./concolic-replay/build/qemu-system-arm" ]; then
+if [ ! -f "./concolic-executor/build/qemu-system-arm" ]; then
 
-  echo "[-] Error: ../concolic-replay not found - compile first! or run the script in the same folder where concolic-replay lies at"
+  echo "[-] Error: ../concolic-executor not found - compile first! or run the script in the same folder where concolic-executor lies at"
   exit 1
 fi
 
@@ -63,8 +63,8 @@ for cur_input in "$TEST_DIR"/*; do
                 "$(printf '#%.0s' $(seq 1 $bar_len))" \
                 "$percent" "$count" "$total"
 
-    # Run TriforceQEMU
-    ./TriforceQEMU/build/qemu-system-arm \
+    # Run triforce-qemu
+    ./triforce-qemu/build/qemu-system-arm \
         -M rehost-fuzzing \
         -display none \
         -kernel "$2" \
@@ -74,7 +74,7 @@ for cur_input in "$TEST_DIR"/*; do
         &>/dev/null
 
     # Run concolic executor
-    SYMCC_OUTPUT_DIR="/tmp/output/" SYMCC_MEMORY_INPUT="1" ./concolic-replay/build/qemu-system-arm \
+    SYMCC_OUTPUT_DIR="/tmp/output/" SYMCC_MEMORY_INPUT="1" ./concolic-executor/build/qemu-system-arm \
         -M concolic-execution \
         -display none \
         -kernel "$2" \
