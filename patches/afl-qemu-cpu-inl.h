@@ -285,8 +285,6 @@ void afl_forkserver(CPUArchState *env) {
 
     if (waitpid(child_pid, (int *)&status, 0) < 0) exit(6);   
 
-    status = status >> 8;
-
     if (write(FORKSRV_FD + 1, &status, 4) != 4) exit(7);
   }
 

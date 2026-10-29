@@ -220,6 +220,6 @@ void helper_aflInterceptPanic(void)
     if (cov_fp)
             // FIXME: fix the size as 4 to colorize cov map
             fprintf(cov_fp, "0x%08" PRIx32 ", %8u, [  ]\n", (uint32_t)aflPanicAddr, 4);
-    _exit(32);
+    abort();
 }
 

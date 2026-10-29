@@ -165,6 +165,11 @@ uint32_t curr_cflags(CPUState *cpu)
 {
     uint32_t cflags = cpu->tcg_cflags;
 
+    /* Keep coverage and interrupt counts independent of the TB cache. */
+    if (aflFile) {
+        cflags |= CF_NO_GOTO_TB | CF_NO_GOTO_PTR;
+    }
+
     /*
      * Record gdb single-step.  We should be exiting the TB by raising
      * EXCP_DEBUG, but to simplify other tests, disable chaining too.
